@@ -11,6 +11,7 @@ const vecMult = (scalar: number, vec: Vec2d) => ({
 });
 const vecSub = (a: Vec2d, b: Vec2d) => vecAdd(a, vecMult(-1, b));
 const vecMag = (v: Vec2d) => Math.sqrt(v.x ** 2 + v.y ** 2);
+const dist = (a: Vec2d, b: Vec2d) => vecMag(vecSub(a, b));
 
 class Point {
   oldPos: Vec2d;
@@ -80,18 +81,24 @@ class Rope {
 
         const diff = (dist - this.restDist) / dist;
 
+        if (a.isAncor && b.isAncor) {
+          continue;
+        }
         if (a.isAncor) {
           const offset = vecMult(diff, dp);
-          b.pos = vecSub(b.pos, offset);
-        }
-
-        if (!a.isAncor) {
-          const offset = vecMult(diff * 0.5, dp);
-          a.pos = vecAdd(a.pos, offset);
-        }
-        if (!b.isAncor) {
-          const offset = vecMult(diff * 0.5, dp);
-          b.pos = vecSub(b.pos, offset);
+          if (!b.isAncor) b.pos = vecSub(b.pos, offset);
+        } else if (b.isAncor) {
+          const offset = vecMult(diff, dp);
+          if (!a.isAncor) a.pos = vecAdd(a.pos, offset);
+        } else {
+          if (!a.isAncor) {
+            const offset = vecMult(diff * 0.5, dp);
+            a.pos = vecAdd(a.pos, offset);
+          }
+          if (!b.isAncor) {
+            const offset = vecMult(diff * 0.5, dp);
+            b.pos = vecSub(b.pos, offset);
+          }
         }
       }
     }
@@ -118,6 +125,7 @@ class Rope {
 
 const myrope = new Rope({ x: 250, y: 100 }, 23, 200);
 
+myrope.points[0].isAncor = false;
 // const last = myrope.points.at(-1)!;
 // last.isAncor = true;
 // last.pos.x = 350;
@@ -141,5 +149,50 @@ const mainLoop = () => {
 
   requestAnimationFrame(mainLoop);
 };
+
+let mouseDown = false;
+let mousePoint: null | Point = null;
+
+canvas.addEventListener("mousedown", (e: MouseEvent) => {
+  mouseDown = true;
+  const pointerVec: Vec2d = {
+    x: e.offsetX,
+    y: e.offsetY,
+  };
+
+  const { bestPoint } = myrope.points.reduce(
+    ({ bestPoint, bestDist }, cur) =>
+      dist(cur.pos, pointerVec) <= bestDist
+        ? { bestPoint: cur, bestDist: dist(cur.pos, pointerVec) }
+        : { bestPoint, bestDist },
+    {
+      bestPoint: myrope.points[0],
+      bestDist: dist(pointerVec, myrope.points[0].pos),
+    }
+  );
+
+  bestPoint.isAncor = true;
+  bestPoint.pos = pointerVec;
+
+  mousePoint = bestPoint;
+});
+
+canvas.addEventListener("mousemove", (e: MouseEvent) => {
+  const pointerVec: Vec2d = {
+    x: e.offsetX,
+    y: e.offsetY,
+  };
+
+  if (!mouseDown) return;
+  if (!mousePoint) return;
+
+  mousePoint.pos = pointerVec;
+});
+
+canvas.addEventListener("mouseup", (e: MouseEvent) => {
+  mouseDown = false;
+  if (!mousePoint) return;
+  mousePoint.isAncor = false;
+});
 
 mainLoop();
